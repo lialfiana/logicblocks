@@ -1,0 +1,1515 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>LOGIC BLOCKS Game</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Three.js untuk 3D Graphics -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <!-- Tone.js untuk Sound Effects & Audio -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+    
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Fredoka+One&family=Nunito:wght@400;700;900&display=swap');
+        
+        body {
+            font-family: 'Nunito', sans-serif;
+            background-color: #0f172a;
+            touch-action: manipulation;
+            user-select: none;
+            overflow: hidden;
+        }
+        .title-font {
+            font-family: 'Fredoka One', cursive;
+        }
+        
+        /* Glassmorphism & Visual Polish */
+        .glass-card {
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(12px);
+            border: 2px solid rgba(255, 255, 255, 0.6);
+        }
+
+        .title-3d-blue {
+            text-shadow: 0 4px 0 #1d4ed8, 0 8px 20px rgba(30, 58, 138, 0.35);
+        }
+
+        .letter-block {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 2.1rem;
+            height: 2.4rem;
+            border-radius: 0.55rem;
+            border: 2px solid rgba(255, 255, 255, 0.85);
+            box-shadow: 0 4px 0 rgba(0,0,0,0.22), inset 0 2px 0 rgba(255,255,255,0.65), 0 6px 12px rgba(0,0,0,0.15);
+            text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+            font-size: 1.35rem;
+            line-height: 1;
+            user-select: none;
+            transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+        .letter-block:hover {
+            transform: translateY(-5px) scale(1.1) rotate(-3deg);
+        }
+
+        @media (min-width: 640px) {
+            .letter-block {
+                width: 3.2rem;
+                height: 3.6rem;
+                border-radius: 0.85rem;
+                border-width: 3px;
+                box-shadow: 0 6px 0 rgba(0,0,0,0.22), inset 0 3px 0 rgba(255,255,255,0.7), 0 10px 18px rgba(0,0,0,0.2);
+                font-size: 2.2rem;
+            }
+        }
+
+        @media (min-width: 1024px) {
+            .letter-block {
+                width: 3.8rem;
+                height: 4.2rem;
+                border-radius: 1rem;
+                box-shadow: 0 7px 0 rgba(0,0,0,0.25), inset 0 3px 0 rgba(255,255,255,0.8), 0 12px 22px rgba(0,0,0,0.22);
+                font-size: 2.65rem;
+            }
+        }
+
+        /* Floating animations for decorative background 3D cubes */
+        @keyframes floatSlow {
+            0%, 100% { transform: translateY(0px) rotate(0deg) scale(1); }
+            50% { transform: translateY(-14px) rotate(8deg) scale(1.05); }
+        }
+        @keyframes floatSlowReverse {
+            0%, 100% { transform: translateY(0px) rotate(0deg) scale(1); }
+            50% { transform: translateY(12px) rotate(-8deg) scale(0.95); }
+        }
+        .animate-float-1 { animation: floatSlow 4s ease-in-out infinite; }
+        .animate-float-2 { animation: floatSlowReverse 5s ease-in-out infinite; }
+
+        /* Lock aspect ratio container */
+        #game-wrapper {
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            padding: 0.5rem;
+            box-sizing: border-box;
+        }
+        #game-app {
+            width: 100%;
+            height: 100%;
+            max-width: 1280px;
+            max-height: 100vh;
+            aspect-ratio: 16 / 9;
+            background-color: white;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+        }
+        @media (min-width: 640px) {
+            #game-app {
+                max-height: calc(100vh - 2rem);
+                border-radius: 1.5rem;
+            }
+        }
+
+        /* Custom scrollbar */
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        
+        /* 3D Canvas Container */
+        #canvas-container {
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle, #e0f2fe 0%, #bae6fd 100%);
+            border-radius: 1rem;
+            box-shadow: inset 0 4px 6px rgba(0,0,0,0.1);
+            position: relative;
+            overflow: hidden;
+        }
+        canvas {
+            display: block;
+            width: 100% !important;
+            height: 100% !important;
+            outline: none;
+        }
+
+        /* Bouncing Animation */
+        .bounce-in { animation: bounceIn 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55) forwards; }
+        @keyframes bounceIn {
+            0% { transform: scale(0.3); opacity: 0; }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); opacity: 1; }
+        }
+    </style>
+</head>
+<body class="text-slate-800">
+
+    <div id="game-wrapper">
+        <div id="game-app">
+            
+            <!-- Header HUD -->
+            <header id="hud" class="hidden flex justify-between items-center p-2 sm:p-3 bg-white border-b-2 border-slate-100 z-10 shadow-sm shrink-0 h-[52px] sm:h-[65px] absolute top-0 w-full left-0 px-2 sm:px-4">
+                <div class="flex items-center space-x-1.5 sm:space-x-3">
+                    <button id="btn-toggle-fullscreen-hud" title="Layar Penuh" class="text-xs sm:text-base font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 px-2.5 sm:px-3 py-1 rounded-full shadow-sm flex items-center transition-all active:scale-95">
+                        <span class="fs-icon-hud">⛶</span>
+                    </button>
+                    <div class="text-xs sm:text-base font-bold bg-slate-100 text-slate-700 px-2 sm:px-3 py-1 rounded-full shadow-sm flex items-center">
+                        <span class="mr-1">⏱️</span> <span id="val-time">--:--</span>
+                    </div>
+                    <div class="text-xs sm:text-base font-bold bg-amber-100 text-amber-700 px-2 sm:px-3 py-1 rounded-full shadow-sm flex items-center">
+                        <span class="mr-1">🪙</span> <span id="val-coins">0</span>
+                    </div>
+                </div>
+                
+                <div class="flex items-center space-x-1.5 sm:space-x-3">
+                    <div class="text-xs sm:text-base font-bold bg-purple-100 text-purple-700 px-2 sm:px-3 py-1 rounded-full shadow-sm flex items-center">
+                        <span class="mr-1">🏆</span> <span id="val-badges">0</span>
+                    </div>
+                    <div class="text-xs sm:text-base font-bold bg-rose-100 text-rose-600 border border-rose-200 px-2 sm:px-3 py-1 rounded-full shadow-sm flex items-center">
+                        <span class="mr-1">❤️</span> <span id="val-lives">3</span>
+                    </div>
+                    <div class="text-xs sm:text-base font-bold bg-yellow-100 text-yellow-600 border border-yellow-200 px-2 sm:px-3 py-1 rounded-full shadow-sm flex items-center">
+                        <span class="mr-1">⭐</span> <span id="val-score">0</span>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Home Screen -->
+            <div id="screen-home" class="flex-1 flex flex-col items-center justify-between p-2 sm:p-4 overflow-hidden w-full absolute inset-0 bg-gradient-to-b from-sky-300 via-sky-200 to-indigo-100 z-20 select-none">
+                
+                <div class="absolute top-24 left-3 sm:left-6 w-10 h-10 sm:w-14 sm:h-14 animate-float-1 pointer-events-none opacity-75 z-0">
+                    <div class="w-full h-full bg-amber-400 rounded-2xl border-4 border-amber-500 shadow-lg transform rotate-12"></div>
+                </div>
+                <div class="absolute bottom-10 right-4 sm:right-8 w-12 h-12 sm:w-16 sm:h-16 animate-float-2 pointer-events-none opacity-75 z-0">
+                    <div class="w-full h-full bg-indigo-500 rounded-3xl border-4 border-indigo-600 shadow-xl transform -rotate-12"></div>
+                </div>
+
+                <!-- Top Controls Bar -->
+                <div class="w-full max-w-4xl flex justify-between items-center z-20 shrink-0 px-2 pt-0.5">
+                    <div class="flex items-center space-x-2">
+                        <button id="btn-toggle-bgm" title="Musik" class="glass-card w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center shadow-sm text-sm sm:text-base text-slate-700 hover:bg-white/90 active:scale-95 transition-all">
+                            <span id="bgm-icon">🎵</span>
+                        </button>
+                        <button id="btn-toggle-fullscreen" title="Layar Penuh" class="glass-card w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center shadow-sm text-sm sm:text-base text-slate-700 hover:bg-white/90 active:scale-95 transition-all">
+                            <span id="fs-icon">⛶</span>
+                        </button>
+                        <button id="btn-petunjuk" title="Petunjuk Permainan" class="glass-card px-2.5 sm:px-3.5 py-1 sm:py-1.5 rounded-full flex items-center space-x-1 shadow-sm text-xs sm:text-sm font-bold text-slate-700 hover:bg-white/90 active:scale-95 transition-all">
+                            <span>❓</span>
+                            <span>Petunjuk</span>
+                        </button>
+                    </div>
+                    <div class="glass-card px-3 sm:px-4 py-1 rounded-full flex items-center space-x-1.5 shadow-sm">
+                        <span class="text-amber-500 text-xs sm:text-base">⭐</span>
+                        <span class="font-black text-[11px] sm:text-xs text-slate-700" id="home-total-stars">0</span>
+                    </div>
+                </div>
+
+                <!-- Game Title Header -->
+                <div class="mt-0 text-center bounce-in shrink-0 z-10">
+                    <h1 class="title-font flex flex-wrap items-center justify-center gap-4 sm:gap-8 my-2 sm:my-3">
+                        <span class="inline-flex gap-1 sm:gap-1.5">
+                            <span class="letter-block bg-gradient-to-b from-amber-300 via-amber-400 to-amber-500 text-white">L</span>
+                            <span class="letter-block bg-gradient-to-b from-emerald-300 via-emerald-400 to-teal-500 text-white">O</span>
+                            <span class="letter-block bg-gradient-to-b from-sky-300 via-sky-400 to-blue-500 text-white">G</span>
+                            <span class="letter-block bg-gradient-to-b from-purple-300 via-purple-400 to-indigo-500 text-white">I</span>
+                            <span class="letter-block bg-gradient-to-b from-rose-300 via-rose-400 to-pink-500 text-white">C</span>
+                        </span>
+                        <span class="inline-flex gap-1 sm:gap-1.5">
+                            <span class="letter-block bg-gradient-to-b from-cyan-300 via-cyan-400 to-blue-600 text-white">B</span>
+                            <span class="letter-block bg-gradient-to-b from-yellow-300 via-yellow-400 to-amber-500 text-white">L</span>
+                            <span class="letter-block bg-gradient-to-b from-pink-300 via-pink-400 to-rose-500 text-white">O</span>
+                            <span class="letter-block bg-gradient-to-b from-emerald-300 via-emerald-400 to-green-600 text-white">C</span>
+                            <span class="letter-block bg-gradient-to-b from-indigo-300 via-indigo-400 to-purple-600 text-white">K</span>
+                            <span class="letter-block bg-gradient-to-b from-orange-300 via-orange-400 to-red-500 text-white">S</span>
+                        </span>
+                    </h1>
+                    <div class="mt-3 sm:mt-4">
+                        <p class="text-[11px] sm:text-xs font-bold text-slate-600 px-3 py-0.5 rounded-full inline-block bg-white/60 backdrop-blur-md border border-white/80 shadow-sm">
+                            Petualangan Bangun Ruang 3D Interaktif 🧩
+                        </p>
+                    </div>
+                    <p class="text-[10px] sm:text-[11px] font-black text-slate-600 mt-1.5 sm:mt-2 tracking-wider uppercase">
+                        Oleh: Lia Alfiana, S.Pd
+                    </p>
+                </div>
+
+                <!-- Level Selector Grid -->
+                <div class="w-full max-w-[98%] lg:max-w-5xl my-auto flex items-center justify-center relative shrink-0 z-10">
+                    <button id="btn-scroll-left" class="hidden sm:flex absolute -left-2 sm:-left-4 z-20 bg-white hover:bg-slate-50 text-blue-600 p-2 rounded-full shadow-lg border-2 border-blue-200 active:scale-95 transition-all justify-center items-center font-black">
+                        ◀
+                    </button>
+
+                    <div id="level-list" class="flex flex-row overflow-x-auto gap-2.5 sm:gap-4 py-2 px-3 snap-x snap-mandatory items-center min-h-[175px] sm:min-h-[210px] w-full no-scrollbar scroll-smooth">
+                        <!-- Populated by JS -->
+                    </div>
+
+                    <button id="btn-scroll-right" class="hidden sm:flex absolute -right-2 sm:-right-4 z-20 bg-white hover:bg-slate-50 text-blue-600 p-2 rounded-full shadow-lg border-2 border-blue-200 active:scale-95 transition-all justify-center items-center font-black">
+                        ▶
+                    </button>
+                </div>
+
+                <div class="text-[10px] sm:text-xs font-bold text-slate-500 shrink-0 z-10 pb-0.5">
+                    Pilih level di atas untuk memulai tantangan! ✨
+                </div>
+            </div>
+
+            <!-- Game Viewport (Interactive 3D Canvas + Questions UI) -->
+            <div id="screen-game" class="flex-1 flex flex-row hidden bg-white absolute inset-0 top-[52px] sm:top-[65px] pb-0 overflow-hidden">
+                <!-- LEFT: 3D Viewport -->
+                <div class="w-1/2 p-3 sm:p-5 flex flex-col bg-slate-50 border-r border-slate-200">
+                    <div class="flex justify-between items-center mb-2 shrink-0">
+                        <h2 id="level-title" class="title-font text-base sm:text-2xl text-blue-600 truncate mr-2">Level Title</h2>
+                        <button id="btn-back" class="text-slate-500 hover:text-white font-bold text-xs sm:text-sm bg-slate-200 hover:bg-slate-400 px-3 sm:px-4 py-1.5 rounded-full shadow-sm transition-colors whitespace-nowrap">Kembali</button>
+                    </div>
+                    <div id="canvas-container" class="flex-1 w-full rounded-xl sm:rounded-2xl shadow-inner min-h-[150px] relative select-none cursor-grab active:cursor-grabbing">
+                        <div id="canvas-controls" class="absolute bottom-2 left-2 right-2 flex justify-between items-center z-10 pointer-events-none">
+                            <div class="bg-slate-900/70 backdrop-blur-md text-white text-[10px] sm:text-xs px-2.5 py-1 rounded-full flex items-center gap-1 shadow-md">
+                                <span>👆</span> <span>Putar 3D</span>
+                            </div>
+                            <div class="flex gap-1.5 pointer-events-auto">
+                                <button id="btn-toggle-autorotate" class="bg-white/90 hover:bg-white text-slate-700 px-2.5 py-1 rounded-lg text-xs font-bold shadow transition-all hover:scale-105 active:scale-95">🔄 Putar: ON</button>
+                                <button id="btn-view-iso" class="bg-white/90 hover:bg-white text-slate-700 px-2.5 py-1 rounded-lg text-xs font-bold shadow transition-all hover:scale-105 active:scale-95">📐 Reset</button>
+                                <button id="btn-view-top" class="bg-white/90 hover:bg-white text-slate-700 px-2.5 py-1 rounded-lg text-xs font-bold shadow transition-all hover:scale-105 active:scale-95">🔝 Atas</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- RIGHT: Questions & Control Panel -->
+                <div id="level-ui" class="w-1/2 p-4 sm:p-8 flex flex-col justify-center overflow-y-auto bg-white">
+                    <!-- Dynamic UI injected here -->
+                </div>
+            </div>
+
+            <!-- Feedback Modal -->
+            <div id="modal-feedback" class="absolute inset-0 z-50 hidden items-center justify-center bg-slate-900/60 backdrop-blur-sm">
+                <div class="bg-white p-6 sm:p-8 rounded-3xl text-center max-w-xs sm:max-w-sm w-full mx-4 shadow-2xl transform transition-all scale-90 opacity-0 flex flex-col items-center" id="modal-content">
+                    <div id="feedback-icon" class="text-6xl sm:text-8xl mb-4">⭐</div>
+                    <h3 id="feedback-title" class="text-2xl sm:text-3xl title-font mb-2 text-slate-800">Luar Biasa!</h3>
+                    <p id="feedback-msg" class="text-base sm:text-lg text-slate-600 mb-6 font-bold">Kamu mendapat +100 poin</p>
+                    <button id="btn-next" class="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 sm:py-4 rounded-xl text-lg sm:text-xl shadow-[0_4px_0_#2563eb] active:translate-y-[4px] active:shadow-none transition-all">LANJUT</button>
+                </div>
+            </div>
+
+            <!-- Petunjuk Modal -->
+            <div id="modal-petunjuk" class="absolute inset-0 z-50 hidden items-center justify-center bg-slate-900/60 backdrop-blur-sm">
+                <div class="bg-white p-5 sm:p-7 rounded-3xl text-center max-w-xs sm:max-w-md w-full mx-4 shadow-2xl transform transition-all scale-90 opacity-0 flex flex-col items-center" id="modal-petunjuk-content">
+                    <div class="text-5xl sm:text-6xl mb-2 sm:mb-3">📜</div>
+                    <h3 class="text-2xl sm:text-3xl title-font mb-3 text-slate-800">Petunjuk Permainan</h3>
+                    <div class="bg-sky-50 border border-sky-200 rounded-2xl p-3.5 sm:p-4 text-slate-700 text-xs sm:text-sm leading-relaxed font-bold text-left mb-5 space-y-2">
+                        <p>Selamat datang! Misi Anda adalah menaklukkan seluruh tantangan dalam batas waktu tertentu untuk meraih gelar Master Logic Blocks.</p>
+                        <p>Anda memulai permainan dengan tiga nyawa. Setiap jawaban salah akan mengurangi satu nyawa.</p>
+                        <p>Jika seluruh nyawa atau waktu habis, permainan berakhir (Game Over) dan Anda harus mengulang dari Level 1.</p>
+                    </div>
+                    <button id="btn-close-petunjuk" class="w-full bg-sky-500 hover:bg-sky-600 text-white font-black py-3 rounded-xl text-base sm:text-lg shadow-[0_4px_0_#0284c7] active:translate-y-[3px] active:shadow-none transition-all">SAYA MENGERTI 👍</button>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        // --- LEVEL DEFINITIONS ---
+        const LEVEL_DATA = [
+            { id: 1, title: 'Kenali Bangun', desc: 'Identifikasi Kubus & Balok', icon: '🕵️', time: 60 },
+            { id: 2, title: 'Hitung Kubus', desc: 'Berapa jumlah kubusnya?', icon: '🧮', time: 90 },
+            { id: 3, title: 'Bangun Balok', desc: 'Susun sesuai target', icon: '🏗️', time: 120 },
+            { id: 4, title: 'Kubus Hilang', desc: 'Hitung bagian rumpang', icon: '🧩', time: 120 },
+            { id: 5, title: 'Build Challenge', desc: 'Atur P, L, T untuk N kubus', icon: '🎯', time: 150 },
+            { id: 6, title: 'MASTER BUILDER', desc: 'Ujian Akhir Volume', icon: '👑', time: 180 }
+        ];
+
+        // --- GLOBAL GAME STATE ---
+        const Game = {
+            score: 0,
+            coins: 0,
+            lives: 3,
+            badges: 0,
+            unlockedLevel: 1,
+            currentLevel: 1,
+            timer: null,
+            timeLeft: 0,
+            bgmPlaying: false,
+            autoRotate: true,
+            
+            // Three.js State
+            scene: null,
+            camera: null,
+            renderer: null,
+            sceneGroup: null,
+            blocks: [],
+            ghostBlocks: [],
+            
+            // Orbit Control state
+            isDragging: false,
+            previousMousePosition: { x: 0, y: 0 },
+            cameraAngleX: Math.PI / 4,
+            cameraAngleY: Math.PI / 6,
+            cameraDistance: 12,
+            
+            // Level state parameters
+            lvlState: {},
+            xrayMode: false
+        };
+
+        // --- UI ELEMENT REFERENCES ---
+        const UI = {
+            home: document.getElementById('screen-home'),
+            game: document.getElementById('screen-game'),
+            hud: document.getElementById('hud'),
+            levelList: document.getElementById('level-list'),
+            levelTitle: document.getElementById('level-title'),
+            levelUi: document.getElementById('level-ui'),
+            canvasContainer: document.getElementById('canvas-container'),
+            valScore: document.getElementById('val-score'),
+            valCoins: document.getElementById('val-coins'),
+            valLives: document.getElementById('val-lives'),
+            valBadges: document.getElementById('val-badges'),
+            valTime: document.getElementById('val-time'),
+            homeTotalStars: document.getElementById('home-total-stars'),
+            modal: document.getElementById('modal-feedback'),
+            modalContent: document.getElementById('modal-content'),
+            feedbackTitle: document.getElementById('feedback-title'),
+            feedbackMsg: document.getElementById('feedback-msg'),
+            feedbackIcon: document.getElementById('feedback-icon'),
+            btnNext: document.getElementById('btn-next'),
+            btnBack: document.getElementById('btn-back')
+        };
+
+        const synth = new Tone.Synth().toDestination();
+
+        let bgmPolySynth = null;
+
+        function initAudio() {
+            if (Tone.context && Tone.context.state !== 'running') {
+                Tone.context.resume();
+            }
+            Tone.start();
+        }
+
+        function initBGM() {
+            if (bgmPolySynth) return;
+
+            // Sintesis musik latar yang ceria dan ringan
+            bgmPolySynth = new Tone.PolySynth(Tone.Synth, {
+                oscillator: { type: "triangle" },
+                envelope: { attack: 0.03, decay: 0.1, sustain: 0.2, release: 0.3 }
+            }).toDestination();
+            bgmPolySynth.volume.value = -18; // Volume lembut agar tidak mengganggu fokus
+
+            const bgmSequence = [
+                ["C4", "E4"], ["G4"], ["E4"], ["C4"],
+                ["F4", "A4"], ["C5"], ["A4"], ["F4"],
+                ["G4", "B4"], ["D5"], ["B4"], ["G4"],
+                ["C4", "E4", "G4"], ["G4"], ["E4"], ["C4"]
+            ];
+
+            let step = 0;
+            Tone.Transport.scheduleRepeat((time) => {
+                if (Game.bgmPlaying) {
+                    const notes = bgmSequence[step % bgmSequence.length];
+                    if (notes) {
+                        bgmPolySynth.triggerAttackRelease(notes, "8n", time);
+                    }
+                    step++;
+                }
+            }, "8n");
+
+            Tone.Transport.bpm.value = 112;
+        }
+
+        function toggleBGM() {
+            initAudio();
+            initBGM();
+
+            Game.bgmPlaying = !Game.bgmPlaying;
+            const icon = document.getElementById('bgm-icon');
+
+            if (Game.bgmPlaying) {
+                Tone.Transport.start();
+                if (icon) icon.innerText = '🔊';
+            } else {
+                Tone.Transport.pause();
+                if (icon) icon.innerText = '🔇';
+            }
+        }
+
+        function playSound(type) {
+            try {
+                initAudio();
+                if (type === 'click') synth.triggerAttackRelease("C5", "16n");
+                else if (type === 'addBlock') {
+                    const now = Tone.now();
+                    synth.triggerAttackRelease("G5", "32n", now);
+                    synth.triggerAttackRelease("D6", "16n", now + 0.03);
+                }
+                else if (type === 'removeBlock') {
+                    const now = Tone.now();
+                    synth.triggerAttackRelease("E4", "32n", now);
+                    synth.triggerAttackRelease("A3", "16n", now + 0.03);
+                }
+                else if (type === 'correct') {
+                    synth.triggerAttackRelease("G5", "16n");
+                    setTimeout(() => synth.triggerAttackRelease("C6", "8n"), 80);
+                }
+                else if (type === 'wrong') synth.triggerAttackRelease("C3", "8n");
+                else if (type === 'drop') synth.triggerAttackRelease("E4", "16n");
+                else if (type === 'win') {
+                    synth.triggerAttackRelease("C5", "16n");
+                    setTimeout(() => synth.triggerAttackRelease("E5", "16n"), 100);
+                    setTimeout(() => synth.triggerAttackRelease("G5", "16n"), 200);
+                    setTimeout(() => synth.triggerAttackRelease("C6", "4n"), 300);
+                }
+            } catch(e) {}
+        }
+
+        function initThreeJS() {
+            if (Game.renderer) return;
+
+            Game.scene = new THREE.Scene();
+            
+            const aspect = UI.canvasContainer.clientWidth / UI.canvasContainer.clientHeight;
+            Game.camera = new THREE.PerspectiveCamera(45, aspect, 0.1, 1000);
+            
+            Game.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            Game.renderer.setSize(UI.canvasContainer.clientWidth, UI.canvasContainer.clientHeight);
+            Game.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            Game.renderer.shadowMap.enabled = true;
+            UI.canvasContainer.appendChild(Game.renderer.domElement);
+
+            Game.sceneGroup = new THREE.Group();
+            Game.scene.add(Game.sceneGroup);
+
+            // Lighting
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+            Game.scene.add(ambientLight);
+
+            const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            dirLight.position.set(10, 20, 15);
+            dirLight.castShadow = true;
+            Game.scene.add(dirLight);
+
+            // Grid Platform
+            const gridHelper = new THREE.GridHelper(12, 12, 0x0284c7, 0xcbd5e1);
+            gridHelper.position.y = -0.51;
+            Game.scene.add(gridHelper);
+
+            // Camera Orbit Controller setup
+            setupCameraControls();
+            setCameraIsometric();
+
+            window.addEventListener('resize', onWindowResize);
+            animate3D();
+        }
+
+        function setupCameraControls() {
+            const container = UI.canvasContainer;
+
+            const onPointerDown = (e) => {
+                Game.isDragging = true;
+                Game.previousMousePosition = {
+                    x: e.clientX || (e.touches && e.touches[0].clientX),
+                    y: e.clientY || (e.touches && e.touches[0].clientY)
+                };
+            };
+
+            const onPointerMove = (e) => {
+                if (!Game.isDragging) return;
+                const clientX = e.clientX || (e.touches && e.touches[0].clientX);
+                const clientY = e.clientY || (e.touches && e.touches[0].clientY);
+
+                const deltaX = clientX - Game.previousMousePosition.x;
+                const deltaY = clientY - Game.previousMousePosition.y;
+
+                Game.cameraAngleX -= deltaX * 0.01;
+                Game.cameraAngleY = Math.max(0.1, Math.min(Math.PI / 2 - 0.05, Game.cameraAngleY + deltaY * 0.01));
+
+                updateCameraPosition();
+                Game.previousMousePosition = { x: clientX, y: clientY };
+            };
+
+            const onPointerUp = () => { Game.isDragging = false; };
+
+            container.addEventListener('mousedown', onPointerDown);
+            window.addEventListener('mousemove', onPointerMove);
+            window.addEventListener('mouseup', onPointerUp);
+
+            container.addEventListener('touchstart', onPointerDown, { passive: true });
+            window.addEventListener('touchmove', onPointerMove, { passive: true });
+            window.addEventListener('touchend', onPointerUp);
+
+            document.getElementById('btn-view-iso').onclick = setCameraIsometric;
+            document.getElementById('btn-view-top').onclick = setCameraTopView;
+
+            const btnAuto = document.getElementById('btn-toggle-autorotate');
+            if (btnAuto) {
+                btnAuto.onclick = () => {
+                    Game.autoRotate = !Game.autoRotate;
+                    btnAuto.innerText = `🔄 Putar: ${Game.autoRotate ? 'ON' : 'OFF'}`;
+                };
+            }
+        }
+
+        function updateCameraPosition() {
+            if (!Game.camera) return;
+            const x = Game.cameraDistance * Math.sin(Game.cameraAngleY) * Math.cos(Game.cameraAngleX);
+            const y = Game.cameraDistance * Math.cos(Game.cameraAngleY);
+            const z = Game.cameraDistance * Math.sin(Game.cameraAngleY) * Math.sin(Game.cameraAngleX);
+
+            Game.camera.position.set(x, y, z);
+            Game.camera.lookAt(0, 0, 0);
+        }
+
+        function setCameraIsometric() {
+            Game.cameraAngleX = Math.PI / 4;
+            Game.cameraAngleY = Math.PI / 6;
+            Game.cameraDistance = 12;
+            if (Game.sceneGroup) Game.sceneGroup.rotation.y = 0;
+            updateCameraPosition();
+        }
+
+        function setCameraTopView() {
+            Game.cameraAngleX = 0;
+            Game.cameraAngleY = 0.05;
+            Game.cameraDistance = 12;
+            if (Game.sceneGroup) Game.sceneGroup.rotation.y = 0;
+            updateCameraPosition();
+        }
+
+        function onWindowResize() {
+            if (!Game.renderer || !Game.camera) return;
+            const width = UI.canvasContainer.clientWidth;
+            const height = UI.canvasContainer.clientHeight;
+            Game.camera.aspect = width / height;
+            Game.camera.updateProjectionMatrix();
+            Game.renderer.setSize(width, height);
+        }
+
+        function animate3D() {
+            requestAnimationFrame(animate3D);
+            
+            // Animasi rotasi otomatis bidang & kamera yang lembut saat pemain tidak menggeser layar
+            if (Game.autoRotate && !Game.isDragging) {
+                Game.cameraAngleX += 0.0015;
+                updateCameraPosition();
+            }
+
+            const now = performance.now();
+            const allBlocks = [...Game.blocks, ...Game.ghostBlocks];
+
+            allBlocks.forEach(mesh => {
+                if (mesh.userData && mesh.userData.isAnimating) {
+                    const elapsed = now - mesh.userData.spawnTime;
+                    if (elapsed < 0) return;
+
+                    const progress = Math.min(1, elapsed / mesh.userData.duration);
+                    
+                    const easeBounceOut = (x) => {
+                        const n1 = 7.5625;
+                        const d1 = 2.75;
+                        if (x < 1 / d1) return n1 * x * x;
+                        else if (x < 2 / d1) return n1 * (x -= 1.5 / d1) * x + 0.75;
+                        else if (x < 2.5 / d1) return n1 * (x -= 2.25 / d1) * x + 0.9375;
+                        else return n1 * (x -= 2.625 / d1) * x + 0.984375;
+                    };
+
+                    const easeVal = easeBounceOut(progress);
+                    const startY = mesh.userData.startY;
+                    const targetY = mesh.userData.targetY;
+
+                    mesh.position.y = startY + (targetY - startY) * easeVal;
+                    
+                    const scaleProgress = Math.min(1, progress * 1.25);
+                    const currentScale = Math.sin(scaleProgress * Math.PI * 0.5);
+                    mesh.scale.set(currentScale, currentScale, currentScale);
+
+                    if (progress >= 1) {
+                        mesh.position.y = targetY;
+                        mesh.scale.set(1, 1, 1);
+                        mesh.userData.isAnimating = false;
+                    }
+                }
+            });
+
+            if (Game.renderer && Game.scene && Game.camera) {
+                Game.renderer.render(Game.scene, Game.camera);
+            }
+        }
+
+        function clearBlocks() {
+            Game.blocks.forEach(b => Game.sceneGroup.remove(b));
+            Game.ghostBlocks.forEach(b => Game.sceneGroup.remove(b));
+            Game.blocks = [];
+            Game.ghostBlocks = [];
+            if (Game.sceneGroup) Game.sceneGroup.rotation.y = 0;
+        }
+
+        function createUnitBlock(x, y, z, color = 0x3b82f6, isGhost = false) {
+            const geometry = new THREE.BoxGeometry(0.95, 0.95, 0.95);
+            const material = new THREE.MeshStandardMaterial({
+                color: isGhost ? 0x94a3b8 : color,
+                roughness: 0.3,
+                metalness: 0.1,
+                transparent: isGhost,
+                opacity: isGhost ? 0.3 : 1.0
+            });
+
+            const mesh = new THREE.Mesh(geometry, material);
+            
+            const targetY = y + 0.5;
+            const dropHeight = 3.2 + (y * 0.3);
+            mesh.userData = {
+                targetY: targetY,
+                startY: targetY + dropHeight,
+                spawnTime: performance.now() + (y * 70 + Math.random() * 30),
+                duration: 480,
+                isAnimating: true
+            };
+
+            mesh.position.set(x, mesh.userData.startY, z);
+            mesh.scale.set(0.01, 0.01, 0.01);
+            mesh.castShadow = true;
+            mesh.receiveShadow = true;
+
+            const edges = new THREE.EdgesGeometry(geometry);
+            const line = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0x000000, linewidth: 2 }));
+            mesh.add(line);
+
+            Game.sceneGroup.add(mesh);
+            if (isGhost) Game.ghostBlocks.push(mesh);
+            else Game.blocks.push(mesh);
+
+            return mesh;
+        }
+
+        // --- LEVEL 1 SETUP: Kenali Bangun (Pastikan Unik) ---
+        function setupLevel1() {
+            const questions = [];
+            const usedKeys = new Set();
+
+            while (questions.length < 5) {
+                const isCube = Math.random() < 0.5;
+                let dx, dy, dz;
+                if (isCube) {
+                    const s = Math.floor(Math.random() * 3) + 2; // 2, 3, 4
+                    dx = dy = dz = s;
+                } else {
+                    dx = Math.floor(Math.random() * 3) + 2; // 2..4
+                    dy = Math.floor(Math.random() * 2) + 1; // 1..2
+                    dz = Math.floor(Math.random() * 3) + 2; // 2..4
+                    if (dx === dy && dy === dz) dz += 1;
+                }
+
+                const key = `${dx}x${dy}x${dz}`;
+                if (!usedKeys.has(key)) {
+                    usedKeys.add(key);
+                    questions.push({ dx, dy, dz, isCube });
+                }
+            }
+
+            function loadQ(idx) {
+                clearBlocks();
+                const q = questions[idx];
+                const startX = -(q.dx - 1) / 2;
+                const startZ = -(q.dz - 1) / 2;
+
+                for (let x = 0; x < q.dx; x++) {
+                    for (let y = 0; y < q.dy; y++) {
+                        for (let z = 0; z < q.dz; z++) {
+                            createUnitBlock(startX + x, y, startZ + z, 0x0284c7);
+                        }
+                    }
+                }
+
+                UI.levelUi.innerHTML = `
+                    <div class="space-y-3 text-center">
+                        <span class="bg-sky-100 text-sky-800 text-xs font-black px-3 py-1 rounded-full">Soal ${idx + 1}</span>
+                        <h3 class="text-xl sm:text-2xl font-black text-slate-800">Apa Nama Bangun Ruang Ini?</h3>
+                        
+                        <div class="bg-slate-50 border border-slate-200 rounded-2xl p-3 text-left space-y-2">
+                            <div class="font-black text-sky-700 text-center uppercase tracking-wider text-[11px] sm:text-xs">
+                                ℹ️ Informasi Sifat Bangun Ruang:
+                            </div>
+                            <div class="grid grid-cols-3 gap-1.5 text-center font-bold text-slate-700">
+                                <div class="bg-white p-1.5 rounded-xl border border-slate-200 shadow-sm">
+                                    <span class="block text-[10px] text-slate-400 font-bold uppercase">Banyak Sisi</span>
+                                    <span class="text-sky-600 font-black text-sm sm:text-base">6 Sisi</span>
+                                </div>
+                                <div class="bg-white p-1.5 rounded-xl border border-slate-200 shadow-sm">
+                                    <span class="block text-[10px] text-slate-400 font-bold uppercase">Banyak Rusuk</span>
+                                    <span class="text-sky-600 font-black text-sm sm:text-base">12 Rusuk</span>
+                                </div>
+                                <div class="bg-white p-1.5 rounded-xl border border-slate-200 shadow-sm">
+                                    <span class="block text-[10px] text-slate-400 font-bold uppercase">Titik Sudut</span>
+                                    <span class="text-sky-600 font-black text-sm sm:text-base">8 Sudut</span>
+                                </div>
+                            </div>
+                            <div class="bg-white p-2 rounded-xl border border-slate-200 text-center shadow-sm">
+                                <span class="text-[10px] text-slate-400 font-bold uppercase block">Bentuk Sisi</span>
+                                <span class="font-black text-slate-800 text-xs sm:text-sm">
+                                    ${q.isCube ? '✨ Semua 6 sisi berbentuk PERSEGI (sama besar)' : '📐 Memiliki sisi berbentuk PERSEGI PANJANG'}
+                                </span>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-3 pt-1">
+                            <button onclick="checkLvl1(${idx}, true)" class="bg-blue-500 hover:bg-blue-600 text-white font-black py-3 px-4 rounded-2xl shadow-[0_4px_0_#1d4ed8] active:translate-y-1 active:shadow-none transition-all text-base sm:text-lg">
+                                KUBUS 🧊
+                            </button>
+                            <button onclick="checkLvl1(${idx}, false)" class="bg-indigo-500 hover:bg-indigo-600 text-white font-black py-3 px-4 rounded-2xl shadow-[0_4px_0_#4338ca] active:translate-y-1 active:shadow-none transition-all text-base sm:text-lg">
+                                BALOK 📦
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }
+
+            window.checkLvl1 = (idx, userChoseCube) => {
+                const q = questions[idx];
+                if (userChoseCube === q.isCube) {
+                    playSound('correct');
+                    if (idx + 1 < 5) loadQ(idx + 1);
+                    else completeLevel(100, 10);
+                } else {
+                    playSound('wrong');
+                    Game.lives--;
+                    updateHUD();
+                    if (Game.lives <= 0) showFeedback('Game Over', 'Nyawa habis! Kamu harus mengulang dari Level 1.', false, () => resetAndStartGame());
+                    else showFeedback('Belum Tepat', q.isCube ? 'Kubus memiliki semua rusuk yang sama panjang!' : 'Balok memiliki panjang, lebar, atau tinggi yang berbeda!', false);
+                }
+            };
+
+            loadQ(0);
+        }
+
+        // --- LEVEL 2 SETUP: Hitung Kubus (5 Jumlah Unik) ---
+        function setupLevel2() {
+            const questions = [];
+            // Pilih 5 jumlah kubus berbeda dari rentang 5 sampai 12
+            const availableCounts = [5, 6, 7, 8, 9, 10, 11, 12].sort(() => Math.random() - 0.5).slice(0, 5);
+
+            for (let i = 0; i < 5; i++) {
+                const targetCount = availableCounts[i];
+                const positions = [[0, 0, 0]];
+                
+                while (positions.length < targetCount) {
+                    const base = positions[Math.floor(Math.random() * positions.length)];
+                    const dirs = [[1,0,0], [-1,0,0], [0,1,0], [0,0,1], [0,0,-1]];
+                    const d = dirs[Math.floor(Math.random() * dirs.length)];
+                    const np = [base[0] + d[0], Math.max(0, base[1] + d[1]), base[2] + d[2]];
+                    if (!positions.some(p => p[0] === np[0] && p[1] === np[1] && p[2] === np[2])) {
+                        positions.push(np);
+                    }
+                }
+                questions.push({ positions, count: targetCount });
+            }
+
+            function loadQ(idx) {
+                clearBlocks();
+                const q = questions[idx];
+
+                q.positions.forEach(p => {
+                    createUnitBlock(p[0] - 0.5, p[1], p[2] - 0.5, 0x10b981);
+                });
+
+                UI.levelUi.innerHTML = `
+                    <div class="space-y-4 text-center">
+                        <span class="bg-emerald-100 text-emerald-800 text-xs font-black px-3 py-1 rounded-full">Soal ${idx + 1}</span>
+                        <h3 class="text-xl sm:text-2xl font-black text-slate-800">Berapa Jumlah Kubus Satuan?</h3>
+                        <p class="text-sm text-slate-500 font-bold">Putar sudut pandang 3D untuk melihat kubus tersembunyi!</p>
+
+                        <div class="flex justify-center items-center gap-2 my-2">
+                            <input type="number" id="input-lvl2" placeholder="0" class="w-28 text-center text-3xl font-black border-4 border-emerald-300 rounded-2xl p-2 focus:border-emerald-500 outline-none">
+                        </div>
+
+                        <button onclick="checkLvl2(${idx})" class="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-black py-3.5 px-6 rounded-2xl shadow-[0_4px_0_#059669] active:translate-y-1 active:shadow-none text-lg transition-all">
+                            PERIKSA JAWABAN 🧮
+                        </button>
+                    </div>
+                `;
+            }
+
+            window.checkLvl2 = (idx) => {
+                const val = parseInt(document.getElementById('input-lvl2').value);
+                if (val === questions[idx].count) {
+                    playSound('correct');
+                    if (idx + 1 < 5) loadQ(idx + 1);
+                    else completeLevel(150, 15);
+                } else {
+                    playSound('wrong');
+                    Game.lives--;
+                    updateHUD();
+                    if (Game.lives <= 0) showFeedback('Game Over', 'Nyawa habis! Kamu harus mengulang dari Level 1.', false, () => resetAndStartGame());
+                    else showFeedback('Hitungan Belum Pas', 'Putar kamera 3D untuk memeriksa bagian belakang atau bawah!', false);
+                }
+            };
+
+            loadQ(0);
+        }
+
+        // --- LEVEL 3 SETUP: Bangun Balok (Target P,L,T Unik) ---
+        function setupLevel3() {
+            const questions = [];
+            const usedKeys = new Set();
+
+            while (questions.length < 5) {
+                const targetP = Math.floor(Math.random() * 3) + 2; // 2..4
+                const targetL = Math.floor(Math.random() * 3) + 2; // 2..4
+                const targetT = Math.floor(Math.random() * 2) + 1; // 1..2
+
+                const key = `${targetP}x${targetL}x${targetT}`;
+                if (!usedKeys.has(key)) {
+                    usedKeys.add(key);
+                    questions.push({ targetP, targetL, targetT });
+                }
+            }
+
+            function loadQ(idx) {
+                Game.lvlState = { ...questions[idx], curP: 1, curL: 1, curT: 1, currentQ: idx, userCount: '' };
+                rebuild3D();
+                updateUI();
+            }
+
+            function updateUI() {
+                const { targetP, targetL, targetT, curP, curL, curT, currentQ, userCount } = Game.lvlState;
+                UI.levelUi.innerHTML = `
+                    <div class="space-y-3 text-center">
+                        <span class="bg-indigo-100 text-indigo-800 text-xs font-black px-3 py-1 rounded-full">Soal ${currentQ + 1}</span>
+                        <div class="bg-indigo-50 border border-indigo-200 p-2.5 rounded-2xl">
+                            <span class="text-xs font-black text-indigo-600 uppercase">Target Ukuran</span>
+                            <p class="text-base sm:text-lg font-black text-indigo-900">Panjang: ${targetP} | Lebar: ${targetL} | Tinggi: ${targetT}</p>
+                        </div>
+
+                        <div class="space-y-2 py-1 text-left">
+                            <div class="flex items-center justify-between bg-slate-50 p-2.5 rounded-xl border border-slate-200 shadow-sm">
+                                <span class="text-xs sm:text-sm font-black text-slate-700">Panjang (P): <span class="text-indigo-600 text-base font-extrabold ml-1">${curP}</span></span>
+                                <div class="flex items-center gap-1.5">
+                                    <button onclick="adjustLvl3('curP', -1)" class="w-8 h-8 bg-indigo-100 hover:bg-indigo-200 text-indigo-700 font-black rounded-lg active:scale-95 transition-all flex items-center justify-center text-sm shadow-sm">➖</button>
+                                    <button onclick="adjustLvl3('curP', 1)" class="w-8 h-8 bg-indigo-500 hover:bg-indigo-600 text-white font-black rounded-lg active:scale-95 transition-all flex items-center justify-center text-sm shadow-sm">➕</button>
+                                </div>
+                            </div>
+                            <div class="flex items-center justify-between bg-slate-50 p-2.5 rounded-xl border border-slate-200 shadow-sm">
+                                <span class="text-xs sm:text-sm font-black text-slate-700">Lebar (L): <span class="text-indigo-600 text-base font-extrabold ml-1">${curL}</span></span>
+                                <div class="flex items-center gap-1.5">
+                                    <button onclick="adjustLvl3('curL', -1)" class="w-8 h-8 bg-indigo-100 hover:bg-indigo-200 text-indigo-700 font-black rounded-lg active:scale-95 transition-all flex items-center justify-center text-sm shadow-sm">➖</button>
+                                    <button onclick="adjustLvl3('curL', 1)" class="w-8 h-8 bg-indigo-500 hover:bg-indigo-600 text-white font-black rounded-lg active:scale-95 transition-all flex items-center justify-center text-sm shadow-sm">➕</button>
+                                </div>
+                            </div>
+                            <div class="flex items-center justify-between bg-slate-50 p-2.5 rounded-xl border border-slate-200 shadow-sm">
+                                <span class="text-xs sm:text-sm font-black text-slate-700">Tinggi (T): <span class="text-indigo-600 text-base font-extrabold ml-1">${curT}</span></span>
+                                <div class="flex items-center gap-1.5">
+                                    <button onclick="adjustLvl3('curT', -1)" class="w-8 h-8 bg-indigo-100 hover:bg-indigo-200 text-indigo-700 font-black rounded-lg active:scale-95 transition-all flex items-center justify-center text-sm shadow-sm">➖</button>
+                                    <button onclick="adjustLvl3('curT', 1)" class="w-8 h-8 bg-indigo-500 hover:bg-indigo-600 text-white font-black rounded-lg active:scale-95 transition-all flex items-center justify-center text-sm shadow-sm">➕</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="bg-indigo-50/80 p-2.5 rounded-2xl border border-indigo-200 text-center space-y-1">
+                            <label for="input-lvl3-count" class="block text-xs sm:text-sm font-black text-indigo-900">Jumlah kubus yang tersusun:</label>
+                            <input type="number" id="input-lvl3-count" value="${userCount || ''}" placeholder="0" class="w-28 text-center text-2xl font-black border-2 border-indigo-300 rounded-xl p-1 focus:border-indigo-600 outline-none bg-white">
+                        </div>
+
+                        <button onclick="checkLvl3()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-black py-3 px-6 rounded-2xl shadow-[0_4px_0_#3730a3] active:translate-y-1 active:shadow-none text-base transition-all mt-1">
+                            BANGUN! 🏗️
+                        </button>
+                    </div>
+                `;
+            }
+
+            function rebuild3D() {
+                clearBlocks();
+                const { curP, curL, curT } = Game.lvlState;
+                const startX = -(curP - 1) / 2;
+                const startZ = -(curL - 1) / 2;
+
+                for (let x = 0; x < curP; x++) {
+                    for (let y = 0; y < curT; y++) {
+                        for (let z = 0; z < curL; z++) {
+                            createUnitBlock(startX + x, y, startZ + z, 0x6366f1);
+                        }
+                    }
+                }
+            }
+
+            window.adjustLvl3 = (key, delta) => {
+                const maxVal = key === 'curT' ? 3 : 4;
+                const minVal = 1;
+                const newVal = Game.lvlState[key] + delta;
+                if (newVal >= minVal && newVal <= maxVal) {
+                    const inputEl = document.getElementById('input-lvl3-count');
+                    if (inputEl) Game.lvlState.userCount = inputEl.value;
+                    Game.lvlState[key] = newVal;
+                    if (delta > 0) playSound('addBlock');
+                    else playSound('removeBlock');
+                    rebuild3D();
+                    updateUI();
+                }
+            };
+
+            window.checkLvl3 = () => {
+                const { targetP, targetL, targetT, curP, curL, curT, currentQ } = Game.lvlState;
+                const inputEl = document.getElementById('input-lvl3-count');
+                const val = inputEl ? parseInt(inputEl.value) : NaN;
+                const actualCount = curP * curL * curT;
+
+                if (isNaN(val)) {
+                    showFeedback('Isi Jawaban', 'Silakan masukkan jumlah kubus yang tersusun!', false);
+                    return;
+                }
+
+                if (curP !== targetP || curL !== targetL || curT !== targetT) {
+                    playSound('wrong');
+                    Game.lives--;
+                    updateHUD();
+                    if (Game.lives <= 0) showFeedback('Game Over', 'Nyawa habis! Kamu harus mengulang dari Level 1.', false, () => resetAndStartGame());
+                    else showFeedback('Ukuran Belum Pas', `Gunakan tombol + / - agar P=${targetP}, L=${targetL}, T=${targetT}!`, false);
+                    return;
+                }
+
+                if (val !== actualCount) {
+                    playSound('wrong');
+                    Game.lives--;
+                    updateHUD();
+                    if (Game.lives <= 0) showFeedback('Game Over', 'Nyawa habis! Kamu harus mengulang dari Level 1.', false, () => resetAndStartGame());
+                    else showFeedback('Hitungan Belum Pas', `Ukuran sudah pas, tetapi jumlah kubus tersusun adalah ${actualCount} (${curP} × ${curL} × ${curT})!`, false);
+                    return;
+                }
+
+                playSound('correct');
+                if (currentQ + 1 < 5) loadQ(currentQ + 1);
+                else completeLevel(200, 20);
+            };
+
+            loadQ(0);
+        }
+
+        // --- LEVEL 4 SETUP: Kubus Hilang (Konfigurasi Unik & Berjenjang) ---
+        function setupLevel4() {
+            const questions = [];
+
+            // Preset tingkat kesulitan berjenjang (Soal 1 -> 5)
+            // Setiap soal memiliki volume minimal 24 kubus & tingkat rumpang yang bertambah secara progresif
+            const difficultyTiers = [
+                { dimX: 4, dimY: 2, dimZ: 3, numMissing: 3 }, // Soal 1: Volume 24, Hilang 3
+                { dimX: 3, dimY: 3, dimZ: 3, numMissing: 4 }, // Soal 2: Volume 27, Hilang 4
+                { dimX: 4, dimY: 3, dimZ: 3, numMissing: 5 }, // Soal 3: Volume 36, Hilang 5
+                { dimX: 4, dimY: 3, dimZ: 4, numMissing: 6 }, // Soal 4: Volume 48, Hilang 6
+                { dimX: 5, dimY: 3, dimZ: 4, numMissing: 7 }  // Soal 5: Volume 60, Hilang 7
+            ];
+
+            difficultyTiers.forEach((tier) => {
+                // Acak orientasi dimensi alas (X dan Z) agar bervariasi setiap kali dimainkan
+                const dimsXZ = [tier.dimX, tier.dimZ].sort(() => Math.random() - 0.5);
+                const dimX = dimsXZ[0];
+                const dimY = tier.dimY;
+                const dimZ = dimsXZ[1];
+
+                const topPositions = [];
+                const topY = dimY - 1; // Hanya permukaan/lapisan paling atas
+                for (let x = 0; x < dimX; x++) {
+                    for (let z = 0; z < dimZ; z++) {
+                        topPositions.push([x, topY, z]);
+                    }
+                }
+                topPositions.sort(() => Math.random() - 0.5);
+
+                const missing = topPositions.slice(0, tier.numMissing);
+                questions.push({ dimX, dimY, dimZ, missing });
+            });
+
+            function loadQ(idx) {
+                clearBlocks();
+                Game.xrayMode = false;
+                const q = questions[idx];
+
+                const startX = -(q.dimX - 1) / 2;
+                const startY = 0;
+                const startZ = -(q.dimZ - 1) / 2;
+
+                for (let x = 0; x < q.dimX; x++) {
+                    for (let y = 0; y < q.dimY; y++) {
+                        for (let z = 0; z < q.dimZ; z++) {
+                            const isMiss = q.missing.some(m => m[0] === x && m[1] === y && m[2] === z);
+                            if (isMiss) {
+                                createUnitBlock(startX + x, startY + y, startZ + z, 0x000000, true);
+                            } else {
+                                createUnitBlock(startX + x, startY + y, startZ + z, 0xec4899);
+                            }
+                        }
+                    }
+                }
+
+                UI.levelUi.innerHTML = `
+                    <div class="space-y-4 text-center">
+                        <span class="bg-rose-100 text-rose-800 text-xs font-black px-3 py-1 rounded-full">Soal ${idx + 1} • Tingkat ${idx + 1}</span>
+                        <h3 class="text-xl sm:text-2xl font-black text-slate-800">Berapa Kubus yang Hilang?</h3>
+                        <p class="text-sm text-slate-500 font-bold">Hitung jumlah kubus yang hilang pada bagian atas bangun ini!</p>
+
+                        <div class="flex justify-center my-2">
+                            <button id="btn-xray-lvl4" onclick="toggleXrayLvl4()" class="bg-purple-100 hover:bg-purple-200 text-purple-700 font-bold px-4 py-2 rounded-xl border border-purple-300 flex items-center gap-2 text-sm transition-all">
+                                👁️ Mode Intip (X-Ray): OFF
+                            </button>
+                        </div>
+
+                        <div class="flex justify-center items-center gap-2 my-2">
+                            <input type="number" id="input-missing" placeholder="0" class="w-28 text-center text-3xl font-black border-4 border-rose-300 rounded-2xl p-2 focus:border-rose-500 outline-none">
+                        </div>
+
+                        <button onclick="checkLvl4(${idx})" class="w-full bg-rose-500 hover:bg-rose-600 text-white font-black py-3.5 px-6 rounded-2xl shadow-[0_4px_0_#be123c] active:translate-y-1 active:shadow-none text-lg transition-all mt-3">
+                            PERIKSA JAWABAN 🧩
+                        </button>
+                    </div>
+                `;
+            }
+
+            window.toggleXrayLvl4 = () => {
+                Game.xrayMode = !Game.xrayMode;
+                const btn = document.getElementById('btn-xray-lvl4');
+                if (btn) {
+                    btn.innerText = `👁️ Mode Intip (X-Ray): ${Game.xrayMode ? 'ON' : 'OFF'}`;
+                    btn.className = Game.xrayMode 
+                        ? "bg-purple-600 text-white font-bold px-4 py-2 rounded-xl flex items-center gap-2 text-sm transition-all shadow-md"
+                        : "bg-purple-100 hover:bg-purple-200 text-purple-700 font-bold px-4 py-2 rounded-xl border border-purple-300 flex items-center gap-2 text-sm transition-all";
+                }
+                Game.blocks.forEach(b => {
+                    b.material.transparent = Game.xrayMode;
+                    b.material.opacity = Game.xrayMode ? 0.45 : 1.0;
+                });
+            };
+
+            window.checkLvl4 = (idx) => {
+                const val = parseInt(document.getElementById('input-missing').value);
+                const targetMissing = questions[idx].missing.length;
+
+                if (val === targetMissing) {
+                    playSound('correct');
+
+                    while (Game.ghostBlocks.length > 0) {
+                        const ghost = Game.ghostBlocks.pop();
+                        const pos = ghost.position.clone();
+                        Game.sceneGroup.remove(ghost);
+                        createUnitBlock(pos.x, pos.y - 0.5, pos.z, 0x10b981);
+                    }
+                    playSound('addBlock');
+
+                    setTimeout(() => {
+                        if (idx + 1 < 5) loadQ(idx + 1);
+                        else completeLevel(250, 25);
+                    }, 800);
+                } else {
+                    playSound('wrong');
+                    Game.lives--;
+                    updateHUD();
+                    if (Game.lives <= 0) showFeedback('Game Over', 'Nyawa habis! Kamu harus mengulang dari Level 1.', false, () => resetAndStartGame());
+                    else showFeedback('Hitungan Belum Tepat', 'Hitung dengan teliti bagian slot transparan yang hilang! Gunakan Mode Intip jika perlu.', false);
+                }
+            };
+
+            loadQ(0);
+        }
+
+        // --- LEVEL 5 SETUP: Build Challenge (5 Target Volume Unik) ---
+        function setupLevel5() {
+            // Array 5 bilangan target volume yang diacak
+            const targets = [8, 12, 16, 18, 24].sort(() => Math.random() - 0.5);
+
+            function loadQ(idx) {
+                Game.lvlState = { targetCount: targets[idx], curP: 1, curL: 1, curT: 1, currentQ: idx };
+                rebuild3D();
+                updateUI();
+            }
+
+            function updateUI() {
+                const { targetCount, curP, curL, curT, currentQ } = Game.lvlState;
+                const currentVol = curP * curL * curT;
+
+                UI.levelUi.innerHTML = `
+                    <div class="space-y-3 text-center">
+                        <span class="bg-amber-100 text-amber-800 text-xs font-black px-3 py-1 rounded-full">Soal ${currentQ + 1}</span>
+                        <div class="bg-amber-50 border border-amber-200 p-2.5 rounded-2xl">
+                            <span class="text-xs font-black text-amber-600 uppercase">Tantangan Konstruksi Balok</span>
+                            <p class="text-base sm:text-lg font-black text-amber-900">Buat Balok dari TEPAT ${targetCount} Kubus Satuan!</p>
+                        </div>
+
+                        <div class="space-y-2 py-1 text-left">
+                            <div class="flex items-center justify-between bg-slate-50 p-2.5 rounded-xl border border-slate-200 shadow-sm">
+                                <span class="text-xs sm:text-sm font-black text-slate-700">Panjang (P): <span class="text-amber-600 text-base font-extrabold ml-1">${curP}</span></span>
+                                <div class="flex items-center gap-1.5">
+                                    <button onclick="adjustLvl5('curP', -1)" class="w-8 h-8 bg-amber-100 hover:bg-amber-200 text-amber-700 font-black rounded-lg active:scale-95 transition-all flex items-center justify-center text-sm shadow-sm">➖</button>
+                                    <button onclick="adjustLvl5('curP', 1)" class="w-8 h-8 bg-amber-500 hover:bg-amber-600 text-white font-black rounded-lg active:scale-95 transition-all flex items-center justify-center text-sm shadow-sm">➕</button>
+                                </div>
+                            </div>
+                            <div class="flex items-center justify-between bg-slate-50 p-2.5 rounded-xl border border-slate-200 shadow-sm">
+                                <span class="text-xs sm:text-sm font-black text-slate-700">Lebar (L): <span class="text-amber-600 text-base font-extrabold ml-1">${curL}</span></span>
+                                <div class="flex items-center gap-1.5">
+                                    <button onclick="adjustLvl5('curL', -1)" class="w-8 h-8 bg-amber-100 hover:bg-amber-200 text-amber-700 font-black rounded-lg active:scale-95 transition-all flex items-center justify-center text-sm shadow-sm">➖</button>
+                                    <button onclick="adjustLvl5('curL', 1)" class="w-8 h-8 bg-amber-500 hover:bg-amber-600 text-white font-black rounded-lg active:scale-95 transition-all flex items-center justify-center text-sm shadow-sm">➕</button>
+                                </div>
+                            </div>
+                            <div class="flex items-center justify-between bg-slate-50 p-2.5 rounded-xl border border-slate-200 shadow-sm">
+                                <span class="text-xs sm:text-sm font-black text-slate-700">Tinggi (T): <span class="text-amber-600 text-base font-extrabold ml-1">${curT}</span></span>
+                                <div class="flex items-center gap-1.5">
+                                    <button onclick="adjustLvl5('curT', -1)" class="w-8 h-8 bg-amber-100 hover:bg-amber-200 text-amber-700 font-black rounded-lg active:scale-95 transition-all flex items-center justify-center text-sm shadow-sm">➖</button>
+                                    <button onclick="adjustLvl5('curT', 1)" class="w-8 h-8 bg-amber-500 hover:bg-amber-600 text-white font-black rounded-lg active:scale-95 transition-all flex items-center justify-center text-sm shadow-sm">➕</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="bg-amber-50 p-2 rounded-xl border border-amber-200 font-black text-xs sm:text-sm text-slate-700">
+                            Total Volume: <span class="text-amber-600">${curP} × ${curL} × ${curT} = ${currentVol}</span> kubus
+                        </div>
+
+                        <button onclick="checkLvl5()" class="w-full bg-amber-500 hover:bg-amber-600 text-white font-black py-3.5 px-6 rounded-2xl shadow-[0_4px_0_#d97706] active:translate-y-1 active:shadow-none text-base transition-all mt-1">
+                            UJI BANGUNAN 🏆
+                        </button>
+                    </div>
+                `;
+            }
+
+            function rebuild3D() {
+                clearBlocks();
+                const { curP, curL, curT } = Game.lvlState;
+                const startX = -(curP - 1) / 2;
+                const startZ = -(curL - 1) / 2;
+
+                for (let x = 0; x < curP; x++) {
+                    for (let y = 0; y < curT; y++) {
+                        for (let z = 0; z < curL; z++) {
+                            createUnitBlock(startX + x, y, startZ + z, 0xf59e0b);
+                        }
+                    }
+                }
+            }
+
+            window.adjustLvl5 = (key, delta) => {
+                const maxVal = 6;
+                const minVal = 1;
+                const newVal = Game.lvlState[key] + delta;
+                if (newVal >= minVal && newVal <= maxVal) {
+                    Game.lvlState[key] = newVal;
+                    if (delta > 0) playSound('addBlock');
+                    else playSound('removeBlock');
+                    rebuild3D();
+                    updateUI();
+                }
+            };
+
+            window.checkLvl5 = () => {
+                const { targetCount, curP, curL, curT, currentQ } = Game.lvlState;
+                const currentVol = curP * curL * curT;
+
+                if (currentVol === targetCount) {
+                    playSound('correct');
+                    if (currentQ + 1 < 5) loadQ(currentQ + 1);
+                    else completeLevel(300, 30);
+                } else {
+                    playSound('wrong');
+                    Game.lives--;
+                    updateHUD();
+                    if (Game.lives <= 0) showFeedback('Game Over', 'Nyawa habis! Kamu harus mengulang dari Level 1.', false, () => resetAndStartGame());
+                    else showFeedback('Jumlah Belum Tepat', `Hasil kali susunanmu saat ini ${currentVol} kubus (${curP} × ${curL} × ${curT}). Atur P, L, dan T agar totalnya tepat ${targetCount} kubus!`, false);
+                }
+            };
+
+            loadQ(0);
+        }
+
+        // --- LEVEL 6 SETUP: MASTER BUILDER (Dimensi P,L,T Unik) ---
+        function setupLevel6() {
+            const questions = [];
+            const usedKeys = new Set();
+
+            while (questions.length < 5) {
+                const p = Math.floor(Math.random() * 3) + 2; // 2..4
+                const l = Math.floor(Math.random() * 3) + 2; // 2..4
+                const t = Math.floor(Math.random() * 3) + 1; // 1..3
+
+                const key = `${p}x${l}x${t}`;
+                if (!usedKeys.has(key)) {
+                    usedKeys.add(key);
+                    questions.push({ p, l, t, volume: p * l * t });
+                }
+            }
+
+            function loadQ(idx) {
+                clearBlocks();
+                const q = questions[idx];
+                const { p, l, t } = q;
+
+                const startX = -(p - 1) / 2;
+                const startZ = -(l - 1) / 2;
+
+                for (let x = 0; x < p; x++) {
+                    for (let y = 0; y < t; y++) {
+                        for (let z = 0; z < l; z++) {
+                            createUnitBlock(startX + x, y, startZ + z, 0x8b5cf6);
+                        }
+                    }
+                }
+
+                UI.levelUi.innerHTML = `
+                    <div class="space-y-4 text-center">
+                        <span class="bg-purple-100 text-purple-700 text-xs font-black px-3 py-1 rounded-full">UJIAN AKHIR MASTER • Soal ${idx + 1}</span>
+                        <h3 class="text-xl sm:text-2xl font-black text-slate-800">Hitung Total Volume Balok Ini!</h3>
+                        <p class="text-sm text-slate-500 font-bold">Ukuran: Panjang = ${p}, Lebar = ${l}, Tinggi = ${t}</p>
+
+                        <div class="flex justify-center items-center gap-2 my-2">
+                            <input type="number" id="input-master" placeholder="0" class="w-28 text-center text-3xl font-black border-4 border-purple-300 rounded-2xl p-2 focus:border-purple-600 outline-none">
+                        </div>
+
+                        <button onclick="checkLvl6(${idx})" class="w-full bg-purple-600 hover:bg-purple-700 text-white font-black py-4 px-6 rounded-2xl shadow-[0_4px_0_#6b21a8] active:translate-y-1 active:shadow-none text-lg transition-all">
+                            SUBMIT JAWABAN 👑
+                        </button>
+                    </div>
+                `;
+            }
+
+            window.checkLvl6 = (idx) => {
+                const val = parseInt(document.getElementById('input-master').value);
+                const targetVol = questions[idx].volume;
+                if (val === targetVol) {
+                    playSound('correct');
+                    if (idx + 1 < 5) {
+                        loadQ(idx + 1);
+                    } else {
+                        playSound('win');
+                        Game.badges++;
+                        completeLevel(500, 50, true);
+                    }
+                } else {
+                    playSound('wrong');
+                    Game.lives--;
+                    updateHUD();
+                    if (Game.lives <= 0) showFeedback('Game Over', 'Nyawa habis! Kamu harus mengulang dari Level 1.', false, () => resetAndStartGame());
+                    else showFeedback('Ujian Belum Lolos', 'Gunakan rumus Volume = Panjang × Lebar × Tinggi !', false);
+                }
+            };
+
+            loadQ(0);
+        }
+
+        function resetAndStartGame() {
+            Game.lives = 3;
+            startLevel(1);
+        }
+
+        function startLevel(lvlId) {
+            initAudio();
+            if (!Game.bgmPlaying) {
+                toggleBGM();
+            }
+            playSound('click');
+            Game.currentLevel = lvlId;
+            if (lvlId === 1 || Game.lives <= 0) {
+                Game.lives = 3;
+            }
+            const lvlData = LEVEL_DATA.find(l => l.id === lvlId);
+
+            UI.home.classList.add('hidden');
+            UI.hud.classList.remove('hidden');
+            UI.game.classList.remove('hidden');
+            UI.levelTitle.innerText = `${lvlData.id}. ${lvlData.title}`;
+
+            updateHUD();
+            startTimer(lvlData.time);
+
+            initThreeJS();
+            setTimeout(onWindowResize, 50);
+
+            if (lvlId === 1) setupLevel1();
+            else if (lvlId === 2) setupLevel2();
+            else if (lvlId === 3) setupLevel3();
+            else if (lvlId === 4) setupLevel4();
+            else if (lvlId === 5) setupLevel5();
+            else if (lvlId === 6) setupLevel6();
+        }
+
+        function completeLevel(scoreReward, coinReward, isFinal = false) {
+            clearInterval(Game.timer);
+            Game.score += scoreReward;
+            Game.coins += coinReward;
+            if (Game.currentLevel >= Game.unlockedLevel) {
+                Game.unlockedLevel = Math.min(LEVEL_DATA.length, Game.currentLevel + 1);
+            }
+            updateHUD();
+
+            const title = isFinal ? '👑 MASTER BUILDER!' : 'Luar Biasa!';
+            const msg = isFinal 
+                ? 'Selamat! Anda telah menyelesaikan seluruh misi dan meraih Gelar Master Logic Blocks!' 
+                : `Kamu mendapatkan +${scoreReward} ⭐ & +${coinReward} 🪙`;
+
+            showFeedback(title, msg, true, () => {
+                if (isFinal) showHome();
+                else startLevel(Game.currentLevel + 1);
+            });
+        }
+
+        function showFeedback(title, message, isSuccess = true, callback = null) {
+            UI.feedbackTitle.innerText = title;
+            UI.feedbackMsg.innerText = message;
+            UI.feedbackIcon.innerText = isSuccess ? '⭐' : '💡';
+
+            UI.modal.classList.remove('hidden');
+            UI.modal.classList.add('flex');
+            
+            setTimeout(() => {
+                UI.modalContent.classList.remove('scale-90', 'opacity-0');
+                UI.modalContent.classList.add('scale-100', 'opacity-100');
+            }, 10);
+
+            UI.btnNext.onclick = () => {
+                UI.modalContent.classList.remove('scale-100', 'opacity-100');
+                UI.modalContent.classList.add('scale-90', 'opacity-0');
+                setTimeout(() => {
+                    UI.modal.classList.add('hidden');
+                    UI.modal.classList.remove('flex');
+                    if (callback) callback();
+                }, 200);
+            };
+        }
+
+        function startTimer(seconds) {
+            clearInterval(Game.timer);
+            Game.timeLeft = seconds;
+            updateTimerDisplay();
+
+            Game.timer = setInterval(() => {
+                Game.timeLeft--;
+                updateTimerDisplay();
+                if (Game.timeLeft <= 0) {
+                    clearInterval(Game.timer);
+                    playSound('wrong');
+                    Game.lives--;
+                    updateHUD();
+                    if (Game.lives <= 0) {
+                        showFeedback('Game Over', 'Waktu dan nyawa habis! Kamu harus mengulang dari Level 1.', false, () => resetAndStartGame());
+                    } else {
+                        showFeedback('Waktu Habis!', `Nyawa berkurang 1! Sisa nyawa: ${Game.lives}`, false, () => startLevel(Game.currentLevel));
+                    }
+                }
+            }, 1000);
+        }
+
+        function updateTimerDisplay() {
+            const m = Math.floor(Game.timeLeft / 60);
+            const s = Game.timeLeft % 60;
+            UI.valTime.innerText = `${m}:${s < 10 ? '0' : ''}${s}`;
+        }
+
+        function updateHUD() {
+            UI.valScore.innerText = Game.score;
+            UI.valCoins.innerText = Game.coins;
+            UI.valLives.innerText = Game.lives;
+            UI.valBadges.innerText = Game.badges;
+            UI.homeTotalStars.innerText = Game.score;
+        }
+
+        function renderHome() {
+            UI.levelList.innerHTML = '';
+            LEVEL_DATA.forEach(lvl => {
+                const isUnlocked = lvl.id <= Game.unlockedLevel;
+                const card = document.createElement('div');
+                card.className = `snap-center shrink-0 w-44 sm:w-52 p-4 rounded-2xl flex flex-col items-center justify-between transition-all duration-300 transform ${
+                    isUnlocked 
+                        ? 'bg-white shadow-xl hover:scale-105 cursor-pointer border-2 border-sky-300' 
+                        : 'bg-slate-200/80 opacity-60 border-2 border-slate-300'
+                }`;
+
+                card.innerHTML = `
+                    <div class="text-4xl sm:text-5xl mb-1">${isUnlocked ? lvl.icon : '🔒'}</div>
+                    <div class="text-center">
+                        <span class="text-[10px] font-black text-sky-600 uppercase tracking-widest">Level ${lvl.id}</span>
+                        <h4 class="title-font text-base sm:text-lg text-slate-800 leading-tight">${lvl.title}</h4>
+                        <p class="text-[11px] font-bold text-slate-500 mt-1">${lvl.desc}</p>
+                    </div>
+                    <button class="mt-3 w-full py-2 rounded-xl text-xs font-black transition-all ${
+                        isUnlocked 
+                            ? 'bg-sky-500 hover:bg-sky-600 text-white shadow-md' 
+                            : 'bg-slate-400 text-slate-100 cursor-not-allowed'
+                    }">
+                        ${isUnlocked ? 'MAIN SEKARANG' : 'TERKUNCI'}
+                    </button>
+                `;
+
+                if (isUnlocked) {
+                    card.onclick = () => startLevel(lvl.id);
+                }
+                UI.levelList.appendChild(card);
+            });
+        }
+
+        function showHome() {
+            clearInterval(Game.timer);
+            UI.game.classList.add('hidden');
+            UI.hud.classList.add('hidden');
+            UI.home.classList.remove('hidden');
+            renderHome();
+        }
+
+        function showPetunjukModal() {
+            playSound('click');
+            const modal = document.getElementById('modal-petunjuk');
+            const content = document.getElementById('modal-petunjuk-content');
+            if (!modal || !content) return;
+            
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            
+            setTimeout(() => {
+                content.classList.remove('scale-90', 'opacity-0');
+                content.classList.add('scale-100', 'opacity-100');
+            }, 10);
+        }
+
+        function hidePetunjukModal() {
+            playSound('click');
+            const modal = document.getElementById('modal-petunjuk');
+            const content = document.getElementById('modal-petunjuk-content');
+            if (!modal || !content) return;
+            
+            content.classList.remove('scale-100', 'opacity-100');
+            content.classList.add('scale-90', 'opacity-0');
+            setTimeout(() => {
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+            }, 200);
+        }
+
+        UI.btnBack.onclick = () => showHome();
+
+        // Horizontal scroll controls
+        document.getElementById('btn-scroll-left').onclick = () => UI.levelList.scrollBy({ left: -220, behavior: 'smooth' });
+        document.getElementById('btn-scroll-right').onclick = () => UI.levelList.scrollBy({ left: 220, behavior: 'smooth' });
+
+        // Fullscreen Toggle
+        const toggleFS = () => {
+            if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(()=>{});
+            else if (document.exitFullscreen) document.exitFullscreen();
+        };
+        document.getElementById('btn-toggle-fullscreen').onclick = toggleFS;
+        document.getElementById('btn-toggle-fullscreen-hud').onclick = toggleFS;
+
+        // On window load
+        window.onload = () => {
+            renderHome();
+
+            document.getElementById('btn-toggle-bgm').onclick = toggleBGM;
+            document.getElementById('btn-petunjuk').onclick = showPetunjukModal;
+            document.getElementById('btn-close-petunjuk').onclick = hidePetunjukModal;
+
+            const unlockAudio = () => {
+                initAudio();
+                document.removeEventListener('click', unlockAudio);
+                document.removeEventListener('touchstart', unlockAudio);
+            };
+            document.addEventListener('click', unlockAudio);
+            document.addEventListener('touchstart', unlockAudio);
+        };
+    </script>
+</body>
+</html>
